@@ -82,8 +82,9 @@ class Createpage(object): # 狀態總覽
         self.msg += '初始投資額 {} \n'.format(self.rb.initBal)
         self.msg += '初始比例： USDT {}% ,TWD {}%\n'.format(round((self.rb.proportion['USDT']*100),2),round((self.rb.proportion['TWD']*100),2))
         self.msg += '差多少再平衡： {}% \n'.format(round((self.rb.grade*100),2))
+        self.msg += '上次USDT成交價： {} \n'.format(self.rb.initPrice)
         self.msg += '當前比例： USDT {}% ,TWD {}%\n'.format(round((self.rb.newPro['USDT']*100),2),round((self.rb.newPro['TWD']*100),2))
-        self.msg += '當前資產狀態： {}USDT ,{} TWD\n'.format(round((self.rb.balance['USDT']),2),round((self.rb.balance['TWD']),2))
+        self.msg += '當前資產狀態： {} USDT ,{} TWD\n'.format(round((self.rb.balance['USDT']),2),round((self.rb.balance['TWD']),2))
 
         self.printInfo()
         self.page.after(30000,self.checking)

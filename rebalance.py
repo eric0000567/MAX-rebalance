@@ -15,6 +15,7 @@ class Rebalance:
         self.balance = {'USDT':0,'TWD':0}
         self.proportion = {'USDT':0,'TWD':0}
         self.newPro = {'USDT':0,'TWD':0}
+        self.initPrice=0
         self.grade = 0.005
         self.rb_path = 'rebalance_parameter.txt'
         self.rb_exists()
@@ -23,6 +24,7 @@ class Rebalance:
         if os.path.exists(self.rb_path):
             with open(self.rb_path) as f:
                 self.initBal =  float(ast.literal_eval(f.readline()))
+                self.initPrice =  float(ast.literal_eval(f.readline()))
                 self.balance = ast.literal_eval(f.readline())
                 self.proportion =  ast.literal_eval(f.readline())
                 self.newPro =  ast.literal_eval(f.readline())
@@ -32,6 +34,7 @@ class Rebalance:
     def _record(self):
         with open(self.rb_path,'w') as f:
             f.write(str(self.initBal)+'\n')
+            f.write(str(self.initPrice)+'\n')
             f.write(str(self.balance)+'\n')
             f.write(str(self.proportion)+'\n')
             f.write(str(self.newPro)+'\n')
@@ -50,6 +53,7 @@ class Rebalance:
             print('幣種比例加總應等於100%')
             return False
         initUSDT = (investment*coinA_pro)/sellPrice
+        self.initPrice = sellPrice
         self.balance['USDT'] = math.floor((initUSDT*0.9985)*100)/100
         self.balance['TWD'] = investment*coinB_pro
         self.proportion['USDT'] = coinA_pro
@@ -69,28 +73,32 @@ class Rebalance:
     def checking(self):
         lastPrice = float(self.client.get_public_all_tickers(pair=self.pair)['sell'])
         nowUSDTBalance = self.balance['USDT']*lastPrice
-        interval = nowUSDTBalance/(nowUSDTBalance+self.balance['TWD'])
+        interval = nowUSDTBalance/((self.balance['USDT']*self.initPrice)+self.balance['TWD'])
         self.newPro['USDT'] = interval
-        self.newPro['TWD'] = self.balance['TWD']/(nowUSDTBalance+self.balance['TWD'])
+        self.newPro['TWD'] = self.balance['TWD']/((self.balance['USDT']*self.initPrice)+self.balance['TWD'])
         grade = interval-self.proportion['USDT']
         if (abs(grade)-self.taker_fee)>self.grade:
             print('over grade')
             side = 'sell' if grade>0 else 'buy'
-            amount = self.balance['USDT']*abs(grade/2)
+            amount = (self.balance['USDT']*abs(grade))*self.proportion['TWD']
             amount = math.floor(amount*100)/100
             price = self.client.get_public_all_tickers(self.pair)
+            print('amount: {}'.format(amount))
             if amount>=9:
                 print('start rebalance..')
                 try:
+                    orderPrice = int(price['sell']) if side=='buy' else int(price['buy'])
+                    self.initPrice = orderPrice
                     res = self.client.set_private_create_order(
                         pair=self.pair,
                         side=side,
                         amount=amount,
-                        price=int(price['sell']) if side=='buy' else int(price['buy'])
+                        price=orderPrice
                     )
                     self.balance['USDT'] = self.balance['USDT']-amount if grade>0 else self.balance['USDT']+amount-(amount*0.0015)
-                    self.balance['TWD'] = self.balance['TWD']+((amount-(amount*0.0015))*lastPrice) if grade>0 else self.balance['TWD']-(amount*lastPrice)
+                    self.balance['TWD'] = self.balance['TWD']+((amount-(amount*0.0015))*orderPrice) if grade>0 else self.balance['TWD']-(amount*orderPrice)
                     print(res)
+                    self._record()
                 except Exception as e:
                     print(str(e))
 
@@ -99,7 +107,7 @@ class Rebalance:
         res = self.client.set_private_create_order(
                     pair=self.pair,
                     side='sell',
-                    amount=self.balance['USDT']*(1-self.taker_fee),
+                    amount=math.floor((self.balance['USDT']*(1-self.taker_fee))*100)/100,
                     price=price['buy']
                 )
         print(res)
